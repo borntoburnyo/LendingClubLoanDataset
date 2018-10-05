@@ -138,35 +138,40 @@ class SMOTEPipe:
 
 #preprocessing pipeline
 preprocess_pipe = FeatureUnion(transformer_list=[
-    ('numeric_feature', make_pipeline(TypeSelector(np.number), SimpleImputer()), StandardScaler()),
-    ('categorical_feature', make_pipeline(TypeSelector(object), SimpleImputer(strategy='most_frequent')))
+    ('numeric_feature', Pipeline([
+        ('selector', TypeSelector(np.number)),
+        ('impute_mean', SimpleImputer(strategy='mean')),
+        ('scaler', StandardScaler())
+    ])),
+    ('categorical_feature', Pipeline([
+        ('selector', TypeSelector(object)),
+        ('impute_most_frequent', SimpleImputer(strategy='most_frequent')),
+        ('one_hot_encode', OneHotEncoder())
+    ]))
 ])
 
 #Logistic Regression Classifier
-lr_pipe = make_pipeline(
-    preprocess_pipe,
-    SMOTEPipe(),
-    LogisticRegression(),
-    )
+lr_pipe = Pipeline([
+    ('preprocess', preprocess_pipe),
+    ('clf', LogisticRegression())
+])
 
 #grid search
-param_grid = {'logisticregression__C': np.logspace(start=-5, stop=3, num=100)}
-lr_grid = GridSearchCV(lr_pipe, param_grid=param_grid, n_jobs=-1, verbose=1, cv=5)
-lr_grid.fit(X.values, y.values)
-y_pred_lr = lr_grid.predict(X_validation.values)
+param_grid = {'clf__C': np.logspace(start=-5, stop=3, num=100)}
+lr_grid = GridSearchCV(lr_pipe, param_grid=param_grid, verbose=1, cv=5)
+lr_grid.fit(X, y)
+y_pred_lr = lr_grid.predict(X_validation)
 auc_lr = roc_auc_score(y_validation.values, y_pred_lr)
 
 #SVC
-svc_pipe  = make_pipeline(
-    preprocess_pipe,
-    SMOTEPipe(),
-    SVC()
-    )
+svc_pipe = Pipeline([
+    ('preprocess', preprocess_pipe),
+    ('clf', SVC())
+]) 
 
-param_grid = {'svc__C': np.logspace(start=-5, stop=5, num=100),
-             'svc__kernel': ['linear', 'poly', 'rbf']}
-svc_grid = GridSearchCV(svc_pipe, param_grid=param_grid, n_jobs=-1, verbose=1, cv=5)
-svc_grid.fit(X.values, y.values)
-y_pred_svc = svc_grid.predict(X_validation.values)
+param_grid = {'clf__C': np.logspace(start=-5, stop=5, num=100),
+             'clf__kernel': ['linear', 'poly', 'rbf']}
+svc_grid = GridSearchCV(svc_pipe, param_grid=param_grid, verbose=1, cv=5)
+svc_grid.fit(X, y)
+y_pred_svc = svc_grid.predict(X_validation)
 auc_svc = roc_auc_score(y_validation.values, y_pred_svc)
-   
